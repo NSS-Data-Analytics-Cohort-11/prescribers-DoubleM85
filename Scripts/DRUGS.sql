@@ -140,31 +140,121 @@ WHERE cbsaname LIKE '%, TN%';
 
 --     b. Which cbsa has the largest combined population? Which has the smallest? Report the CBSA name and total population.
 
-SELECT *
-FROM population
-ORDER BY fipscounty
-LIMIT 10;
-
-SELECT cbsa.cbsaname, population.population
+SELECT cbsa.cbsaname, SUM(population.population) AS total_population
 FROM cbsa
 INNER JOIN population
 on cbsa.fipscounty = population.fipscounty
-ORDER BY population.population;
+GROUP BY cbsa.cbsaname
+ORDER BY total_population DESC;
 
+SELECT cbsa.cbsaname, SUM(population.population) AS total_population
+FROM cbsa
+INNER JOIN population
+on cbsa.fipscounty = population.fipscounty
+GROUP BY cbsa.cbsaname
+ORDER BY total_population;
+
+-- ANSWER: 
+-- Largest: "Nashville-Davidson--Murfreesboro--Franklin, TN"	1830410
+-- Smallest: "Morristown, TN"	116352
 
 --     c. What is the largest (in terms of population) county which is not included in a CBSA? Report the county name and population.
+
+SELECT fips_county.county AS county,
+		population.population AS population,
+		cbsa.fipscounty
+FROM fips_county
+INNER JOIN population
+ON fips_county.fipscounty = population.fipscounty
+LEFT JOIN cbsa
+ON fips_county.fipscounty = cbsa.fipscounty
+WHERE cbsa.fipscounty IS NULL
+ORDER BY population DESC
+LIMIT 5;
+
+-- ANSWER: "SEVIER"	95523
 
 -- 6. 
 --     a. Find all rows in the prescription table where total_claims is at least 3000. Report the drug_name and the total_claim_count.
 
+SELECT prescription.drug_name,
+		prescription.total_claim_count
+FROM prescription
+WHERE prescription.total_claim_count >= 3000;
+
+-- ANSWER:
+-- "OXYCODONE HCL"	4538
+-- "GABAPENTIN"	3531
+-- "LEVOTHYROXINE SODIUM"	3023
+-- "LEVOTHYROXINE SODIUM"	3101
+-- "LISINOPRIL"	3655
+-- "FUROSEMIDE"	3083
+-- "HYDROCODONE-ACETAMINOPHEN"	3376
+-- "LEVOTHYROXINE SODIUM"	3138
+-- "MIRTAZAPINE"	3085
+
 --     b. For each instance that you found in part a, add a column that indicates whether the drug is an opioid.
 
+SELECT prescription.drug_name,
+		prescription.total_claim_count,
+		drug.opioid_drug_flag as opioid
+FROM prescription
+INNER JOIN drug
+ON drug.drug_name = prescription.drug_name
+WHERE prescription.total_claim_count >= 3000;
+
 --     c. Add another column to you answer from the previous part which gives the prescriber first and last name associated with each row.
+
+SELECT  prescriber.nppes_provider_first_name AS first_name,
+		prescriber.nppes_provider_last_org_name AS last_name_org,
+		prescription.drug_name,
+		prescription.total_claim_count,
+		drug.opioid_drug_flag as opioid
+FROM prescription
+INNER JOIN drug
+ON drug.drug_name = prescription.drug_name
+INNER JOIN prescriber
+ON prescriber.npi = prescription.npi
+WHERE prescription.total_claim_count >= 3000;
 
 -- 7. The goal of this exercise is to generate a full list of all pain management specialists in Nashville and the number of claims they had for each opioid. **Hint:** The results from all 3 parts will have 637 rows.
 
 --     a. First, create a list of all npi/drug_name combinations for pain management specialists (specialty_description = 'Pain Management) in the city of Nashville (nppes_provider_city = 'NASHVILLE'), where the drug is an opioid (opiod_drug_flag = 'Y'). **Warning:** Double-check your query before running it. You will only need to use the prescriber and drug tables since you don't need the claims numbers yet.
 
+SELECT
+	prescriber.npi,
+	drug.drug_name
+FROM prescriber
+CROSS JOIN drug
+-- LIMIT 10
+WHERE 
+	prescriber.specialty_description = 'Pain Management' AND
+	prescriber.nppes_provider_city = 'NASHVILLE' AND
+	drug.opioid_drug_flag = 'Y';
+	
 --     b. Next, report the number of claims per drug per prescriber. Be sure to include all combinations, whether or not the prescriber had any claims. You should report the npi, the drug name, and the number of claims (total_claim_count).
-    
+
+SELECT
+	prescriber.npi,
+	drug.drug_name,
+	(SELECT
+	 	SUM(prescription.total_claim_count)
+	 FROM prescription
+	 WHERE prescriber.npi = prescription.npi
+	 AND prescription.drug_name = drug.drug_name) as total_claims
+FROM prescriber
+CROSS JOIN drug  -- use a cross and an inner
+INNER JOIN prescription
+using (npi)
+WHERE 
+	prescriber.specialty_description = 'Pain Management' AND
+	prescriber.nppes_provider_city = 'NASHVILLE' AND
+	drug.opioid_drug_flag = 'Y'
+GROUP BY prescriber.npi, drug.drug_name
+ORDER BY prescriber.npi DESC;
+
+SELECT *
+FROM prescription
+LIMIT 10
+
 --     c. Finally, if you have not done so already, fill in any missing values for total_claim_count with 0. Hint - Google the COALESCE function.
