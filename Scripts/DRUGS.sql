@@ -72,7 +72,47 @@ LIMIT 3;
 
 --     c. **Challenge Question:** Are there any specialties that appear in the prescriber table that have no associated prescriptions in the prescription table?
 
+SELECT 	
+	prescriber.specialty_description,
+	SUM(prescription.total_claim_count) AS total_claims
+FROM prescriber
+LEFT JOIN prescription
+ON prescriber.npi = prescription.npi
+GROUP BY prescriber.specialty_description
+HAVING SUM(prescription.total_claim_count) IS NULL;
+
 --     d. **Difficult Bonus:** *Do not attempt until you have solved all other problems!* For each specialty, report the percentage of total claims by that specialty which are for opioids. Which specialties have a high percentage of opioids?
+
+--first CTE for total claims
+WITH claims AS 
+	(SELECT
+		pr.specialty_description,
+		SUM(rx.total_claim_count) AS total_claims
+	FROM prescriber AS pr
+	INNER JOIN prescription AS rx
+	USING(npi)
+	INNER JOIN drug
+	USING (drug_name)
+	GROUP BY pr.specialty_description),
+-- second CTE for total opioid claims
+opioid AS
+	(SELECT
+		pr.specialty_description,
+		SUM(rx.total_claim_count) AS total_opioid
+	FROM prescriber AS pr
+	INNER JOIN prescription AS rx
+	USING(npi)
+	INNER JOIN drug
+	USING (drug_name)
+	WHERE drug.opioid_drug_flag ='Y'
+	GROUP BY pr.specialty_description)
+--main query
+SELECT
+	claims.specialty_description,
+	ROUND((opioid.total_opioid / claims.total_claims * 100),2) AS perc_opioid
+FROM claims
+INNER JOIN opioid
+USING(specialty_description);
 
 -- 3. 
 --     a. Which drug (generic_name) had the highest total drug cost?
@@ -253,8 +293,27 @@ WHERE
 GROUP BY prescriber.npi, drug.drug_name
 ORDER BY prescriber.npi DESC;
 
-SELECT *
-FROM prescription
-LIMIT 10
+-- SELECT *
+-- FROM prescription
+-- LIMIT 10
 
 --     c. Finally, if you have not done so already, fill in any missing values for total_claim_count with 0. Hint - Google the COALESCE function.
+
+SELECT
+	prescriber.npi,
+	drug.drug_name,
+	(SELECT COALESCE(
+	 	SUM(prescription.total_claim_count),0)
+	 FROM prescription
+	 WHERE prescriber.npi = prescription.npi
+	 AND prescription.drug_name = drug.drug_name) as total_claims
+FROM prescriber
+CROSS JOIN drug  -- use a cross and an inner
+INNER JOIN prescription
+using (npi)
+WHERE 
+	prescriber.specialty_description = 'Pain Management' AND
+	prescriber.nppes_provider_city = 'NASHVILLE' AND
+	drug.opioid_drug_flag = 'Y'
+GROUP BY prescriber.npi, drug.drug_name
+ORDER BY prescriber.npi DESC;
