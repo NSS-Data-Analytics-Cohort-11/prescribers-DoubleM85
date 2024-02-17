@@ -79,7 +79,8 @@ FROM prescriber
 LEFT JOIN prescription
 ON prescriber.npi = prescription.npi
 GROUP BY prescriber.specialty_description
-HAVING SUM(prescription.total_claim_count) IS NULL;
+HAVING SUM(prescription.total_claim_count) IS NULL
+ORDER BY prescriber.specialty_description;
 
 --     d. **Difficult Bonus:** *Do not attempt until you have solved all other problems!* For each specialty, report the percentage of total claims by that specialty which are for opioids. Which specialties have a high percentage of opioids?
 
@@ -109,10 +110,11 @@ opioid AS
 --main query
 SELECT
 	claims.specialty_description,
-	ROUND((opioid.total_opioid / claims.total_claims * 100),2) AS perc_opioid
+	COALESCE(ROUND((opioid.total_opioid / claims.total_claims * 100),2),0) AS perc_opioid
 FROM claims
-INNER JOIN opioid
-USING(specialty_description);
+LEFT JOIN opioid
+USING(specialty_description)
+ORDER BY perc_opioid DESC;
 
 -- 3. 
 --     a. Which drug (generic_name) had the highest total drug cost?
@@ -172,11 +174,21 @@ LIMIT 5;
 
 --     a. How many CBSAs are in Tennessee? **Warning:** The cbsa table contains information for all states, not just Tennessee.
 
-SELECT COUNT (*)
-FROM cbsa
-WHERE cbsaname LIKE '%, TN%';
+--Did this wrong
+-- SELECT COUNT (DISTINCT cbsa)
+-- FROM cbsa
+-- WHERE cbsaname LIKE '%, TN%';
 
 -- ANSWER: 56
+
+--try again
+SELECT COUNT(*)
+FROM cbsa
+INNER JOIN fips_county
+USING (fipscounty)
+WHERE fips_county.state = 'TN';
+
+-- ANSWER: 42
 
 --     b. Which cbsa has the largest combined population? Which has the smallest? Report the CBSA name and total population.
 
